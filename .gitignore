@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.vs/octopus/v17/.wsuo
+.vs/VSWorkspaceState.json
+.vs/octopus/v17/DocumentLayout.json
