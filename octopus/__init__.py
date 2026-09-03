@@ -1,9 +1,10 @@
 """octopus - a reusable, config-driven ML-ops package.
 
-Every pluggable part (dataloaders, datasets, models, pipelines, trainers,
-testers, exporters) is an "arm": you implement your own concrete versions
-and wire them together through a JSON config, without touching the shared
-core in ``octopus.platypus``.
+Every pluggable part (dataloaders, datasets, pipelines, trainers, testers,
+exporters) is an "arm": you implement your own concrete versions and wire
+them together through a JSON config, without touching the shared core in
+``octopus.platypus``. Models are plain ``torch.nn.Module`` subclasses -
+octopus has no base class for them.
 
 Run a model:
     python -m octopus run <model_key>
@@ -19,7 +20,6 @@ __all__ = [
     "dataloaders",
     "datasets",
     "exporters",
-    "models",
     "pipelines",
     "testers",
     "trainers",
