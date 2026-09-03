@@ -120,5 +120,7 @@ is a thin convenience wrapper around the constructor above.
 
 ## Related pages
 
-- [BasePipeline](BasePipeline)
+- [Home](Home)
+- [Base Contracts](Base-Contracts) — `BasePipeline` and the other implementable contracts
 - [Metrics data model](Metrics-Data-Model) — `MetricEntry`, `EpochSummary`, `PipelineRun`
+- [CLI Usage](CLI-Usage) — running pipelines with `python -m octopus`

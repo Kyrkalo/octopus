@@ -55,8 +55,7 @@ octopus/
   platypus/          # the engine: config.py (load configs.json) + factory.py (ModelFactory)
   metrics/            # pipeline/epoch metrics collection, used by BasePipeline
   utils/              # shared torchvision/COCO helpers + GPT checkpoint tools
-  dataloaders/base.py # BaseDataLoader   - implement get()
-  models/base.py      # BaseModel        - nn.Module + count_parameters()
+  dataloaders/base.py # BaseDataLoader   - implement setup()
   pipelines/base.py   # BasePipeline     - implement setup() / run()
   trainers/base.py    # BaseTrainer      - implement train(epoch)
   testers/base.py     # BaseTester       - implement test(epoch)
@@ -101,8 +100,8 @@ To add a model, implement the pieces you need against these contracts
 
 | Base | You implement | Contract |
 |---|---|---|
-| `BaseDataLoader` | `get(self)` | returns loader(s), e.g. `(train_loader, val_loader)` |
-| `BaseModel` | `forward(self, x)` | plain `nn.Module`, plus free `count_parameters()` |
+| `BaseDataLoader` | `setup(self)` | build `self.dataset` / `self.data_loader`; `get()` calls `setup()` and returns `self.data_loader` |
+| *(model)* | `forward(self, x)` | plain `torch.nn.Module` - octopus has no base class for models |
 | `BasePipeline` | `setup(self)`, `run(self)` | `setup()` must return `self` and set `self.model`; also gives you metrics/checkpoint helpers (`start_pipeline`, `end_epoch`, `load_pretrained_model`, ...) |
 | `BaseTrainer` | `train(self, epoch)` | runs one training epoch |
 | `BaseTester` | `test(self, epoch)` | runs one evaluation epoch |
@@ -125,18 +124,18 @@ from torch.utils.data import DataLoader, TensorDataset
 from octopus.dataloaders.base import BaseDataLoader
 
 class ToyDataLoader(BaseDataLoader):
-    def get(self):
+    def setup(self):
         x = torch.randn(200, 1)
         y = 3 * x + 1
-        return DataLoader(TensorDataset(x, y), batch_size=self.config["batch_size"], shuffle=True)
+        self.dataset = TensorDataset(x, y)
+        self.data_loader = DataLoader(self.dataset, batch_size=self.config["batch_size"], shuffle=True)
 ```
 
 **2. `myproject/toy/model.py`**
 ```python
 import torch.nn as nn
-from octopus.models.base import BaseModel
 
-class ToyLinear(BaseModel):
+class ToyLinear(nn.Module):
     def __init__(self):
         super().__init__()
         self.linear = nn.Linear(1, 1)
