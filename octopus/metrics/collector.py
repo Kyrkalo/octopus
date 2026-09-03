@@ -15,56 +15,6 @@ from .pipeline_run import PipelineRun
 
 
 class PipelineMetricsCollector:
-    """
-    Centralized metrics collector for ML pipelines.
-
-    This class provides a unified interface for tracking metrics across different
-    types of ML pipelines and saves them in a structured format.
-
-    Example Usage:
-        ```python
-        # Initialize collector
-        collector = PipelineMetricsCollector(
-            pipeline_name="MNIST_Training",
-            pipeline_type="supervised_classification",
-            config={"epochs": 20, "batch_size": 32}
-        )
-
-        # Start pipeline
-        collector.start_pipeline()
-
-        # Training loop
-        for epoch in range(num_epochs):
-            collector.start_epoch(epoch)
-
-            # Training phase
-            for batch_idx, (data, target) in enumerate(train_loader):
-                loss = train_step(data, target)
-                collector.log_metric("train_loss", loss.item(), step=batch_idx)
-
-            # Validation phase
-            val_metrics = validate()
-            collector.log_phase_metrics("val", val_metrics)
-
-            # End epoch
-            collector.end_epoch(epoch, {
-                "train_loss": avg_train_loss,
-                "val_loss": val_metrics["loss"],
-                "val_accuracy": val_metrics["accuracy"]
-            })
-
-        # Save model
-        collector.add_artifact("model_path", "models/mnist_model.pth")
-        collector.add_artifact("onnx_path", "models/mnist_model.onnx")
-
-        # End pipeline
-        collector.end_pipeline(
-            status=PipelineStatus.COMPLETED,
-            final_metrics={"best_val_accuracy": 0.98}
-        )
-        ```
-    """
-
     def __init__(
         self,
         pipeline_name: str,

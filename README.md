@@ -9,8 +9,8 @@ model. Everything is resolved at runtime from a JSON config, so adding a new
 model means writing an implementation and a config block, not editing
 `octopus` itself.
 
-It's designed to be dropped into any project (or eventually extracted into
-its own repo) and reused as-is.
+It's a standalone, installable package meant to be a dependency of your
+training project, not a template you copy into it.
 
 ## Introduction
 
@@ -19,17 +19,34 @@ every model it supported. That doesn't scale past a handful of models, and
 it means every new model requires touching shared code. `octopus` splits
 that into two halves:
 
-- **The engine** (`octopus/`) — abstract contracts for each moving part,
-  a config loader, and a factory that dynamically imports and wires
-  concrete classes by dotted path. This half never changes per-model.
+- **The engine** (this repo, `octopus/`) — abstract contracts for each
+  moving part, a config loader, and a factory that dynamically imports and
+  wires concrete classes by dotted path. This half never changes per-model
+  and has no knowledge of any consuming project.
 - **Your implementations** — concrete dataloaders/models/pipelines/etc.
-  that follow those contracts, living wherever you want (this repo keeps
-  its own under `src/custom/`).
+  that follow those contracts, living in your own project (wherever you
+  want, as long as it's importable), plus a `configs.json` that points at
+  them by dotted path.
 
 The name follows the same idea: `octopus` is the body with many
 independent, pluggable arms (dataloaders, models, trainers, ...), each one
 your own implementation, coordinated from one shared core. That core - the
 config loader and factory - lives in `octopus/platypus/`.
+
+## Install
+
+`octopus` is a regular installable Python package (not a template to copy
+into your project). From your consuming project:
+
+```bash
+pip install -e /path/to/octopus          # local editable checkout
+# or
+pip install git+https://github.com/Kyrkalo/octopus.git   # pinned/remote
+```
+
+Then `import octopus` works from anywhere in your project, and
+`python -m octopus run|run-all|list --config path/to/your/configs.json`
+runs your models.
 
 ## Explore concepts
 
@@ -50,17 +67,20 @@ octopus/
 
 **`configs.json` is the single source of truth.** Each top-level key is a
 model you can run. Its `components` block maps role → dotted class path;
-everything else in the block is that model's hyperparameters:
+everything else in the block is that model's hyperparameters. This repo
+ships `configs.json` with no model blocks — it only exists to define
+`dataset_root` — because those blocks belong to your project, not the
+engine. Point `--config` at your own file, e.g.:
 
 ```json
 "mnist": {
   "components": {
-    "dataloader": "src.custom.mnist.dataloader.MnistDataLoader",
-    "model":      "src.custom.mnist.model.Mdl_mnist_202520",
-    "pipeline":   "src.custom.mnist.pipeline.MnistPipeline",
-    "trainer":    "src.custom.mnist.trainer.MNISTTrainer",
-    "tester":     "src.custom.mnist.tester.MNISTTester",
-    "exporter":   "src.custom.mnist.exporter.MnistExportOnnx"
+    "dataloader": "myproject.mnist.dataloader.MnistDataLoader",
+    "model":      "myproject.mnist.model.MnistModel",
+    "pipeline":   "myproject.mnist.pipeline.MnistPipeline",
+    "trainer":    "myproject.mnist.trainer.MnistTrainer",
+    "tester":     "myproject.mnist.tester.MnistTester",
+    "exporter":   "myproject.mnist.exporter.MnistExportOnnx"
   },
   "learning_rate": 0.01,
   "n_epochs": 1
@@ -88,16 +108,17 @@ To add a model, implement the pieces you need against these contracts
 | `BaseTester` | `test(self, epoch)` | runs one evaluation epoch |
 | `Exporter` | `setup(self)`, `run(self)` | takes `(config, model=...)`; base gives you `getPath(extension)` |
 
-Put the implementation in a self-contained folder (mirroring
-`src/custom/<model>/`: `dataloader.py`, `model.py`, `pipeline.py`,
+Put the implementation in a self-contained folder in your own project
+(e.g. `myproject/<model>/`: `dataloader.py`, `model.py`, `pipeline.py`,
 `trainer.py`, ...) anywhere importable - `octopus` never imports it
-directly, only `configs.json` points at it.
+directly, only your `configs.json` points at it.
 
 ## Write your first flow
 
-A minimal "toy" model that trains `y = 3x + 1` on random data.
+A minimal "toy" model that trains `y = 3x + 1` on random data, built in
+your own project (which has `octopus` installed as a dependency).
 
-**1. `src/custom/toy/dataloader.py`**
+**1. `myproject/toy/dataloader.py`**
 ```python
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -110,7 +131,7 @@ class ToyDataLoader(BaseDataLoader):
         return DataLoader(TensorDataset(x, y), batch_size=self.config["batch_size"], shuffle=True)
 ```
 
-**2. `src/custom/toy/model.py`**
+**2. `myproject/toy/model.py`**
 ```python
 import torch.nn as nn
 from octopus.models.base import BaseModel
@@ -124,7 +145,7 @@ class ToyLinear(BaseModel):
         return self.linear(x)
 ```
 
-**3. `src/custom/toy/trainer.py`**
+**3. `myproject/toy/trainer.py`**
 ```python
 import torch.nn as nn
 from octopus.trainers.base import BaseTrainer
@@ -145,13 +166,13 @@ class ToyTrainer(BaseTrainer):
         print(f"epoch {epoch}  loss {loss.item():.4f}")
 ```
 
-**4. `src/custom/toy/pipeline.py`**
+**4. `myproject/toy/pipeline.py`**
 ```python
 import torch.optim as optim
 from octopus.pipelines.base import BasePipeline
-from src.custom.toy.dataloader import ToyDataLoader
-from src.custom.toy.model import ToyLinear
-from src.custom.toy.trainer import ToyTrainer
+from myproject.toy.dataloader import ToyDataLoader
+from myproject.toy.model import ToyLinear
+from myproject.toy.trainer import ToyTrainer
 
 class ToyPipeline(BasePipeline):
     def __init__(self, config):
@@ -171,14 +192,15 @@ class ToyPipeline(BasePipeline):
         return self
 ```
 
-**5. Add a block to `octopus/configs.json`**
+**5. Add a block to your own `configs.json`** (not the one bundled with
+this repo — see [Install](#install))
 ```json
 "toy": {
   "components": {
-    "dataloader": "src.custom.toy.dataloader.ToyDataLoader",
-    "model":      "src.custom.toy.model.ToyLinear",
-    "pipeline":   "src.custom.toy.pipeline.ToyPipeline",
-    "trainer":    "src.custom.toy.trainer.ToyTrainer"
+    "dataloader": "myproject.toy.dataloader.ToyDataLoader",
+    "model":      "myproject.toy.model.ToyLinear",
+    "pipeline":   "myproject.toy.pipeline.ToyPipeline",
+    "trainer":    "myproject.toy.trainer.ToyTrainer"
   },
   "batch_size": 32,
   "lr": 0.01,
@@ -188,8 +210,21 @@ class ToyPipeline(BasePipeline):
 
 **6. Run it**
 ```bash
-python -m octopus run toy
+python -m octopus run toy --config path/to/your/configs.json
 ```
 
 No exporter, no dataset class, no edits anywhere under `octopus/` - that's
 the whole point.
+
+## Development
+
+To work on `octopus` itself:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+The test suite (`tests/`) covers the engine only — `platypus.config` and
+`platypus.factory` — using fake pipeline/exporter classes, so it has no
+dependency on any consuming project's model code.
